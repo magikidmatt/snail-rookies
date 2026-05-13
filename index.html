@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Shelby the Snail - Magikid STEM Adventure</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script type="module" src="https://unpkg.com/@google/model-viewer@3.4.0/dist/model-viewer.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -207,7 +206,16 @@
             <!-- Interactive 3D Snail Viewer -->
             <div class="bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl p-8 mb-6 text-center">
                 <div id="snailContainer" class="w-full h-64 bg-white rounded-xl shadow-lg mb-4" style="position: relative;">
-                    <div id="snailViewer" class="w-full h-full"></div>
+                    <model-viewer 
+                        id="snailViewer"
+                        src="snail-v1.glb"
+                        alt="3D Snail Model"
+                        auto-rotate
+                        camera-controls
+                        style="width: 100%; height: 100%;"
+                        class="w-full h-full"
+                    >
+                    </model-viewer>
                     <div class="absolute bottom-2 left-0 right-0 text-center text-gray-500 text-sm">
                         Loading 3D Snail...
                     </div>
@@ -671,190 +679,6 @@
             if (step) {
                 step.scrollIntoView({ behavior: 'smooth' });
             }
-        }
-
-                // Initialize 3D Snail Viewer
-        let scene, camera, renderer, snailModel;
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-        let rotationX = 0, rotationY = 0;
-        let zoom = 5;
-        
-        function initSnailViewer() {
-            const container = document.getElementById('snailViewer');
-            if (!container) {
-                console.error('snailViewer container not found');
-                return;
-            }
-            
-            // Ensure container has dimensions
-            if (container.clientWidth === 0 || container.clientHeight === 0) {
-                setTimeout(initSnailViewer, 100);
-                return;
-            }
-            
-            // Create scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf0f9ff);
-            
-            // Create camera
-            camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-            camera.position.set(0, 0, 5);
-            
-            // Create renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-            renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.setClearColor(0xf0f9ff, 1);
-            container.appendChild(renderer.domElement);
-            
-            // Style renderer canvas
-            renderer.domElement.style.width = '100%';
-            renderer.domElement.style.height = '100%';
-            renderer.domElement.style.display = 'block';
-            
-            // Add lights
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-            scene.add(ambientLight);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(5, 10, 7);
-            scene.add(directionalLight);
-            
-            // Mouse events
-            renderer.domElement.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            });
-            
-            renderer.domElement.addEventListener('mousemove', (e) => {
-                if (!isDragging) return;
-                const deltaX = e.clientX - previousMousePosition.x;
-                const deltaY = e.clientY - previousMousePosition.y;
-                rotationY += deltaX * 0.01;
-                rotationX += deltaY * 0.01;
-                if (snailModel) {
-                    snailModel.rotation.y = rotationY;
-                    snailModel.rotation.x = rotationX;
-                }
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            });
-            
-            renderer.domElement.addEventListener('mouseup', () => isDragging = false);
-            renderer.domElement.addEventListener('mouseleave', () => isDragging = false);
-            
-            // Touch events for iPad
-            renderer.domElement.addEventListener('touchstart', (e) => {
-                e.preventDefault();
-                isDragging = true;
-                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            }, { passive: false });
-            
-            renderer.domElement.addEventListener('touchmove', (e) => {
-                e.preventDefault();
-                if (!isDragging) return;
-                const deltaX = e.touches[0].clientX - previousMousePosition.x;
-                const deltaY = e.touches[0].clientY - previousMousePosition.y;
-                rotationY += deltaX * 0.01;
-                rotationX += deltaY * 0.01;
-                if (snailModel) {
-                    snailModel.rotation.y = rotationY;
-                    snailModel.rotation.x = rotationX;
-                }
-                previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            }, { passive: false });
-            
-            renderer.domElement.addEventListener('touchend', () => isDragging = false);
-            
-            // Zoom
-            renderer.domElement.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                zoom += e.deltaY * 0.01;
-                zoom = Math.max(2, Math.min(10, zoom));
-                camera.position.z = zoom;
-            }, { passive: false });
-            
-            // Load GLB model with CORS support
-            const modelUrl = 'https://magikid-os.s3.us-west-1.amazonaws.com/prod/shares/snail-v1/snail-v1.glb';
-            
-            // Use fetch to load with CORS, then parse with GLTFLoader
-            fetch(modelUrl, { mode: 'cors' })
-                .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    return response.arrayBuffer();
-                })
-                .then(data => {
-                    const loader = new THREE.GLTFLoader();
-                    loader.parse(data, '', (gltf) => {
-                        snailModel = gltf.scene;
-                        // Center and scale the model
-                        const box = new THREE.Box3().setFromObject(snailModel);
-                        const center = box.getCenter(new THREE.Vector3());
-                        const size = box.getSize(new THREE.Vector3());
-                        const maxDim = Math.max(size.x, size.y, size.z);
-                        const scale = 3.0 / maxDim;
-                        snailModel.scale.setScalar(scale);
-                        snailModel.position.sub(center.multiplyScalar(scale));
-                        scene.add(snailModel);
-                        // Update status text
-                        const statusEl = document.querySelector('#snailContainer .text-gray-500');
-                        if (statusEl) {
-                            statusEl.textContent = 'Drag to rotate • Scroll to zoom! 🐌';
-                        }
-                    }, (error) => {
-                        console.error('Error parsing GLB:', error);
-                        const statusEl = document.querySelector('#snailContainer .text-gray-500');
-                        if (statusEl) {
-                            statusEl.textContent = 'Model loading failed. Please refresh.';
-                        }
-                    });
-                })
-                .catch(error => {
-                    console.error('Error fetching GLB:', error);
-                    const statusEl = document.querySelector('#snailContainer .text-gray-500');
-                    if (statusEl) {
-                        statusEl.textContent = 'Model loading failed. Check connection.';
-                    }
-                });
-            
-            // Animation loop
-            function animate() {
-                requestAnimationFrame(animate);
-                if (snailModel && !isDragging) {
-                    snailModel.rotation.y += 0.005;
-                }
-                renderer.render(scene, camera);
-            }
-            animate();
-            
-            // Handle resize
-            window.addEventListener('resize', () => {
-                const width = container.clientWidth;
-                const height = container.clientHeight;
-                if (width > 0 && height > 0) {
-                    camera.aspect = width / height;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(width, height);
-                }
-            });
-        }
-        
-        // Call init when page loads
-        window.addEventListener('DOMContentLoaded', () => {
-            initSnailViewer();
-            initPathfinder();
-        });
-        
-        // Animate Character (now controls 3D model)
-        function animateCharacter() {
-            if (snailModel) {
-                snailModel.scale.set(1.2, 1.2, 1.2);
-                setTimeout(() => {
-                    snailModel.scale.set(1, 1, 1);
-                }, 300);
-            }
-            playSound('hello');
-        }
-
-</script>
+        // Cal to Step
 </body>
 </html>
