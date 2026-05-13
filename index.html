@@ -205,7 +205,7 @@
 
             <!-- Interactive 3D Snail Viewer -->
             <div class="bg-gradient-to-br from-green-100 to-blue-100 rounded-2xl p-8 mb-6 text-center">
-                <div id="snailContainer" class="w-full h-64 bg-white rounded-xl shadow-lg mb-4" style="position: relative;">
+                <div id="snailContainer" class="w-full h-64 bg-white rounded-xl shadow-lg mb-4">
                     <model-viewer 
                         id="snailViewer"
                         src="snail-v1.glb"
@@ -213,12 +213,8 @@
                         auto-rotate
                         camera-controls
                         style="width: 100%; height: 100%;"
-                        class="w-full h-full"
                     >
                     </model-viewer>
-                    <div class="absolute bottom-2 left-0 right-0 text-center text-gray-500 text-sm">
-                        Loading 3D Snail...
-                    </div>
                 </div>
                 <p class="text-lg text-gray-600 mt-4">Drag to rotate • Scroll to zoom! 🐌</p>
             </div>
@@ -673,12 +669,136 @@
             document.getElementById('progressText').textContent = total + '/6 Steps';
         }
 
-        // Scroll to Step
-        function scrollToStep(n) {
-            const step = document.getElementById('step' + n);
-            if (step) {
-                step.scrollIntoView({ behavior: 'smooth' });
+        // Update Progress
+        function animateCharacter() {
+            const viewer = document.getElementById('snailViewer');
+            if (viewer) {
+                // model-viewer doesn't have a direct scale method
+                // Could add animation here if needed
             }
-        // Cal to Step
+            playSound('hello');
+        }
+
+        // Toggle Check Item
+        function toggleCheck(n) {
+            const el = document.getElementById('check' + n);
+            if (checkedItems.has(n)) {
+                checkedItems.delete(n);
+                el.classList.remove('bg-green-100');
+                el.querySelector('.check-mark').classList.add('hidden');
+            } else {
+                checkedItems.add(n);
+                el.classList.add('bg-green-100');
+                el.querySelector('.check-mark').classList.remove('hidden');
+            }
+            
+            // Check if all 4 items are checked
+            if (checkedItems.size === 4) {
+                setTimeout(() => completeStep(3), 500);
+            }
+        }
+
+        // Init Pathfinder Game
+        function initPathfinder() {
+            const canvas = document.getElementById('pathfinderCanvas');
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const gridSize = 10;
+            const cellSize = canvas.width / gridSize;
+            
+            // Draw grid
+            ctx.strokeStyle = '#d1d5db';
+            for (let i = 0; i <= gridSize; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellSize, 0);
+                ctx.lineTo(i * cellSize, canvas.height);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellSize);
+                ctx.lineTo(canvas.width, i * cellSize);
+                ctx.stroke();
+            }
+            
+            // Draw start and end
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(0 * cellSize + 2, 0 * cellSize + 2, cellSize - 4, cellSize - 4);
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(9 * cellSize + 2, 9 * cellSize + 2, cellSize - 4, cellSize - 4);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold ' + (cellSize * 0.6) + 'px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('S', 0 * cellSize + cellSize/2, 0 * cellSize + cellSize/2);
+            ctx.fillText('E', 9 * cellSize + cellSize/2, 9 * cellSize + cellSize/2);
+        }
+
+        // Play Sound
+        function playSound(soundName) {
+            // Simple sound playback using Web Audio API
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            if (soundName === 'hello') {
+                oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+            } else if (soundName === 'celebration') {
+                oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime); // G5
+            }
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        }
+
+        // Show Confetti
+        function showConfetti() {
+            const colors = ['#10b981', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6'];
+            const container = document.body;
+            
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.style.position = 'fixed';
+                confetti.style.width = '10px';
+                confetti.style.height = '10px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.top = '-10px';
+                confetti.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+                confetti.style.zIndex = '9999';
+                confetti.style.animation = `confettiFall ${Math.random() * 2 + 1}s linear forwards`;
+                container.appendChild(confetti);
+                
+                setTimeout(() => confetti.remove(), 3000);
+            }
+        }
+
+        // Add confetti animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes confettiFall {
+                0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+                100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Remove initSnailViewer call since we're using model-viewer now
+        window.addEventListener('DOMContentLoaded', () => {
+            initPathfinder();
+        });
+
+        // Remove the old Three.js initSnailViewer function
+        // (model-viewer handles 3D rendering automatically)
+
+        // CLear any Three.js related code
+        // (removed initSnailViewer function)
 </body>
 </html>
