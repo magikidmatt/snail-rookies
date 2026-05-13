@@ -675,9 +675,23 @@
 
                 // Initialize 3D Snail Viewer
         let scene, camera, renderer, snailModel;
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let rotationX = 0, rotationY = 0;
+        let zoom = 5;
         
         function initSnailViewer() {
             const container = document.getElementById('snailViewer');
+            if (!container) {
+                console.error('snailViewer container not found');
+                return;
+            }
+            
+            // Ensure container has dimensions
+            if (container.clientWidth === 0 || container.clientHeight === 0) {
+                setTimeout(initSnailViewer, 100);
+                return;
+            }
             
             // Create scene
             scene = new THREE.Scene();
@@ -685,13 +699,18 @@
             
             // Create camera
             camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-            camera.position.set(2, 2, 5);
+            camera.position.set(0, 0, 5);
             
             // Create renderer
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
             renderer.setSize(container.clientWidth, container.clientHeight);
-            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.setClearColor(0xf0f9ff, 1);
             container.appendChild(renderer.domElement);
+            
+            // Style renderer canvas
+            renderer.domElement.style.width = '100%';
+            renderer.domElement.style.height = '100%';
+            renderer.domElement.style.display = 'block';
             
             // Add lights
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -701,12 +720,7 @@
             directionalLight.position.set(5, 10, 7);
             scene.add(directionalLight);
             
-            // Add controls for rotation and zoom
-            let isDragging = false;
-            let previousMousePosition = { x: 0, y: 0 };
-            let rotationX = 0, rotationY = 0;
-            let zoom = 5;
-            
+            // Mouse events
             renderer.domElement.addEventListener('mousedown', (e) => {
                 isDragging = true;
                 previousMousePosition = { x: e.clientX, y: e.clientY };
@@ -733,7 +747,7 @@
                 e.preventDefault();
                 isDragging = true;
                 previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            });
+            }, { passive: false });
             
             renderer.domElement.addEventListener('touchmove', (e) => {
                 e.preventDefault();
@@ -747,7 +761,7 @@
                     snailModel.rotation.x = rotationX;
                 }
                 previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            });
+            }, { passive: false });
             
             renderer.domElement.addEventListener('touchend', () => isDragging = false);
             
@@ -757,26 +771,50 @@
                 zoom += e.deltaY * 0.01;
                 zoom = Math.max(2, Math.min(10, zoom));
                 camera.position.z = zoom;
-            });
+            }, { passive: false });
             
-            // Load GLB model
-            const loader = new THREE.GLTFLoader();
-            loader.load(
-                'https://magikid-os.s3.us-west-1.amazonaws.com/prod/shares/snail-v1/snail-v1.glb',
-                (gltf) => {
-                    snailModel = gltf.scene;
-                    snailModel.scale.set(1, 1, 1);
-                    scene.add(snailModel);
-                    document.querySelector('#snailContainer .text-gray-500').textContent = 'Drag to rotate • Scroll to zoom! 🐌';
-                },
-                (xhr) => {
-                    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-                },
-                (error) => {
-                    console.error('Error loading GLB:', error);
-                    document.querySelector('#snailContainer .text-gray-500').textContent = 'Model loading failed. Please check connection.';
-                }
-            );
+            // Load GLB model with CORS support
+            const modelUrl = 'https://magikid-os.s3.us-west-1.amazonaws.com/prod/shares/snail-v1/snail-v1.glb';
+            
+            // Use fetch to load with CORS, then parse with GLTFLoader
+            fetch(modelUrl, { mode: 'cors' })
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.arrayBuffer();
+                })
+                .then(data => {
+                    const loader = new THREE.GLTFLoader();
+                    loader.parse(data, '', (gltf) => {
+                        snailModel = gltf.scene;
+                        // Center and scale the model
+                        const box = new THREE.Box3().setFromObject(snailModel);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z);
+                        const scale = 3.0 / maxDim;
+                        snailModel.scale.setScalar(scale);
+                        snailModel.position.sub(center.multiplyScalar(scale));
+                        scene.add(snailModel);
+                        // Update status text
+                        const statusEl = document.querySelector('#snailContainer .text-gray-500');
+                        if (statusEl) {
+                            statusEl.textContent = 'Drag to rotate • Scroll to zoom! 🐌';
+                        }
+                    }, (error) => {
+                        console.error('Error parsing GLB:', error);
+                        const statusEl = document.querySelector('#snailContainer .text-gray-500');
+                        if (statusEl) {
+                            statusEl.textContent = 'Model loading failed. Please refresh.';
+                        }
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching GLB:', error);
+                    const statusEl = document.querySelector('#snailContainer .text-gray-500');
+                    if (statusEl) {
+                        statusEl.textContent = 'Model loading failed. Check connection.';
+                    }
+                });
             
             // Animation loop
             function animate() {
@@ -790,9 +828,13 @@
             
             // Handle resize
             window.addEventListener('resize', () => {
-                camera.aspect = container.clientWidth / container.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                if (width > 0 && height > 0) {
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(width, height);
+                }
             });
         }
         
